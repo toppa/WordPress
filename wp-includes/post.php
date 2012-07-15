@@ -403,6 +403,7 @@ function &get_post(&$post, $output = OBJECT, $filter = 'raw') {
 			$_post = $wpdb->get_row($wpdb->prepare("SELECT * FROM $wpdb->posts WHERE ID = %d LIMIT 1", $post_id));
 			if ( ! $_post )
 				return $null;
+			$_post = WP_Post::get_instance($_post);
 			_get_post_ancestors($_post);
 			$_post = sanitize_post($_post, 'raw');
 			wp_cache_add($_post->ID, $_post, 'posts');
@@ -5347,7 +5348,7 @@ function _prime_post_caches( $ids, $update_term_cache = true, $update_meta_cache
 	$non_cached_ids = _get_non_cached_ids( $ids, 'posts' );
 	if ( !empty( $non_cached_ids ) ) {
 		$fresh_posts = $wpdb->get_results( sprintf( "SELECT $wpdb->posts.* FROM $wpdb->posts WHERE ID IN (%s)", join( ",", $non_cached_ids ) ) );
-
+		$fresh_posts = WP_Post::get_instances($fresh_posts);
 		update_post_caches( $fresh_posts, 'any', $update_term_cache, $update_meta_cache );
 	}
 }

@@ -27,7 +27,7 @@ function the_ID() {
  */
 function get_the_ID() {
 	global $post;
-	return $post->ID;
+	return $post->get_ID();
 }
 
 /**
@@ -102,20 +102,7 @@ function the_title_attribute( $args = '' ) {
  */
 function get_the_title( $id = 0 ) {
 	$post = &get_post($id);
-
-	$title = isset($post->post_title) ? $post->post_title : '';
-	$id = isset($post->ID) ? $post->ID : (int) $id;
-
-	if ( !is_admin() ) {
-		if ( !empty($post->post_password) ) {
-			$protected_title_format = apply_filters('protected_title_format', __('Protected: %s'));
-			$title = sprintf($protected_title_format, $title);
-		} else if ( isset($post->post_status) && 'private' == $post->post_status ) {
-			$private_title_format = apply_filters('private_title_format', __('Private: %s'));
-			$title = sprintf($private_title_format, $title);
-		}
-	}
-	return apply_filters( 'the_title', $title, $id );
+	return $post->get_title($id);
 }
 
 /**
@@ -149,8 +136,7 @@ function the_guid( $id = 0 ) {
  */
 function get_the_guid( $id = 0 ) {
 	$post = &get_post($id);
-
-	return apply_filters('get_the_guid', $post->guid);
+	return $post->get_guid($id);
 }
 
 /**
@@ -178,51 +164,8 @@ function the_content($more_link_text = null, $stripteaser = false) {
  * @return string
  */
 function get_the_content($more_link_text = null, $stripteaser = false) {
-	global $post, $more, $page, $pages, $multipage, $preview;
-
-	if ( null === $more_link_text )
-		$more_link_text = __( '(more...)' );
-
-	$output = '';
-	$hasTeaser = false;
-
-	// If post password required and it doesn't match the cookie.
-	if ( post_password_required($post) )
-		return get_the_password_form();
-
-	if ( $page > count($pages) ) // if the requested page doesn't exist
-		$page = count($pages); // give them the highest numbered page that DOES exist
-
-	$content = $pages[$page-1];
-	if ( preg_match('/<!--more(.*?)?-->/', $content, $matches) ) {
-		$content = explode($matches[0], $content, 2);
-		if ( !empty($matches[1]) && !empty($more_link_text) )
-			$more_link_text = strip_tags(wp_kses_no_null(trim($matches[1])));
-
-		$hasTeaser = true;
-	} else {
-		$content = array($content);
-	}
-	if ( (false !== strpos($post->post_content, '<!--noteaser-->') && ((!$multipage) || ($page==1))) )
-		$stripteaser = true;
-	$teaser = $content[0];
-	if ( $more && $stripteaser && $hasTeaser )
-		$teaser = '';
-	$output .= $teaser;
-	if ( count($content) > 1 ) {
-		if ( $more ) {
-			$output .= '<span id="more-' . $post->ID . '"></span>' . $content[1];
-		} else {
-			if ( ! empty($more_link_text) )
-				$output .= apply_filters( 'the_content_more_link', ' <a href="' . get_permalink() . "#more-{$post->ID}\" class=\"more-link\">$more_link_text</a>", $more_link_text );
-			$output = force_balance_tags($output);
-		}
-
-	}
-	if ( $preview ) // preview fix for javascript bug with foreign languages
-		$output =	preg_replace_callback('/\%u([0-9A-F]{4})/', '_convert_urlencoded_to_entities', $output);
-
-	return $output;
+	global $post;
+	return $post->get_content($more_link_text, $stripteaser);
 }
 
 /**
@@ -256,15 +199,8 @@ function the_excerpt() {
  * @return string
  */
 function get_the_excerpt( $deprecated = '' ) {
-	if ( !empty( $deprecated ) )
-		_deprecated_argument( __FUNCTION__, '2.3' );
-
 	global $post;
-	if ( post_password_required($post) ) {
-		return __( 'There is no excerpt because this is a protected post.' );
-	}
-
-	return apply_filters( 'get_the_excerpt', $post->post_excerpt );
+	return $post->get_excerpt($deprecated = '');
 }
 
 /**
@@ -277,7 +213,7 @@ function get_the_excerpt( $deprecated = '' ) {
  */
 function has_excerpt( $id = 0 ) {
 	$post = &get_post( $id );
-	return ( !empty( $post->post_excerpt ) );
+	return $post->has_excerpt();
 }
 
 /**
@@ -312,65 +248,7 @@ function post_class( $class = '', $post_id = null ) {
  */
 function get_post_class( $class = '', $post_id = null ) {
 	$post = get_post($post_id);
-
-	$classes = array();
-
-	if ( empty($post) )
-		return $classes;
-
-	$classes[] = 'post-' . $post->ID;
-	$classes[] = $post->post_type;
-	$classes[] = 'type-' . $post->post_type;
-	$classes[] = 'status-' . $post->post_status;
-
-	// Post Format
-	if ( post_type_supports( $post->post_type, 'post-formats' ) ) {
-		$post_format = get_post_format( $post->ID );
-
-		if ( $post_format && !is_wp_error($post_format) )
-			$classes[] = 'format-' . sanitize_html_class( $post_format );
-		else
-			$classes[] = 'format-standard';
-	}
-
-	// post requires password
-	if ( post_password_required($post->ID) )
-		$classes[] = 'post-password-required';
-
-	// sticky for Sticky Posts
-	if ( is_sticky($post->ID) && is_home() && !is_paged() )
-		$classes[] = 'sticky';
-
-	// hentry for hAtom compliance
-	$classes[] = 'hentry';
-
-	// Categories
-	if ( is_object_in_taxonomy( $post->post_type, 'category' ) ) {
-		foreach ( (array) get_the_category($post->ID) as $cat ) {
-			if ( empty($cat->slug ) )
-				continue;
-			$classes[] = 'category-' . sanitize_html_class($cat->slug, $cat->term_id);
-		}
-	}
-
-	// Tags
-	if ( is_object_in_taxonomy( $post->post_type, 'post_tag' ) ) {
-		foreach ( (array) get_the_tags($post->ID) as $tag ) {
-			if ( empty($tag->slug ) )
-				continue;
-			$classes[] = 'tag-' . sanitize_html_class($tag->slug, $tag->term_id);
-		}
-	}
-
-	if ( !empty($class) ) {
-		if ( !is_array( $class ) )
-			$class = preg_split('#\s+#', $class);
-		$classes = array_merge($classes, $class);
-	}
-
-	$classes = array_map('esc_attr', $classes);
-
-	return apply_filters('post_class', $classes, $class, $post->ID);
+    return $post->get_post_class( $class );
 }
 
 /**

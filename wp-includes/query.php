@@ -2660,6 +2660,10 @@ class WP_Query {
 		if ( !$q['suppress_filters'] )
 			$this->posts = apply_filters_ref_array('posts_results', array( $this->posts, &$this ) );
 
+		if ( is_array($this->posts) ) {
+			$this->posts = WP_Post::get_instances( $this->posts );
+		}
+
 		if ( !empty($this->posts) && $this->is_comment_feed && $this->is_singular ) {
 			$cjoin = apply_filters_ref_array('comment_feed_join', array( '', &$this ) );
 			$cwhere = apply_filters_ref_array('comment_feed_where', array( "WHERE comment_post_ID = '{$this->posts[0]->ID}' AND comment_approved = '1'", &$this ) );
